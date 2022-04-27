@@ -1,0 +1,80 @@
+plugins {
+    id 'java'
+}
+
+group 'ch.so.agi.mex'
+version '0.1'
+sourceCompatibility = 11
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile 'commons-cli:commons-cli:1.5.0'
+    compile 'com.fasterxml.jackson.core:jackson-databind:2.13.2.2'
+    compile 'org.postgresql:postgresql:42.3.4'
+    compile 'org.slf4j:slf4j-simple:1.7.36'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.2'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.2'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+jar {
+    manifest {
+        attributes (
+                "Main-Class": "ch.so.agi.mex.Mex",
+                "Implementation-Title": "Metadata exporter (mex)",
+                "Implementation-Version": getAppVersion() + " (Benötigt Java 11)",
+                "Implementation-Vendor": "Amt für Geoinformation, Kt. Solothurn",
+                "Build-Timestamp": getTimestamp(),
+                "Build-Git-Commit": getCheckedOutGitCommitHash()
+        )
+    }
+
+    from {
+        configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+}
+
+task stage(type: Copy, dependsOn: build) {
+    from file("$buildDir/libs/")
+    into file("$buildDir")
+    include "mex*.jar"
+
+    rename { String filename ->
+        return "mex.jar"
+    }
+}
+
+task exit_ok(type: Exec, dependsOn: stage){
+    workingDir './inttest'
+    commandLine './exit_ok.sh'
+}
+
+task inttest {
+    dependsOn exit_ok
+}
+
+String getAppVersion() {
+    String rev = System.getenv('GITHUB_RUN_NUMBER')
+
+    if(rev == null)
+        rev = 'localbuild'
+
+    return project.version + "." + rev
+}
+
+def getCheckedOutGitCommitHash() {
+    String val = 'git log -1 --pretty=%H'.execute().text.trim()
+    return val
+}
+
+def getTimestamp() {
+    def date = new Date()
+    return date.format('yyyy-MM-dd HH:mm:ss')
+}
